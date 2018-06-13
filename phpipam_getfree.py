@@ -97,7 +97,9 @@ def run_module():
     s.headers.update({'token': '%s' % token})
 
     subnet_id = get_subnet_id(s, module.params['url'], module.params['subnet'])
-    print subnet_id
+    
+    ip = get_free_ip(s, module.params['url'], subnet_id)
+
     #result['message'] += token    
 
     #get_subnet_id(module.params['url'], request, module.params['subnet']) 
@@ -114,8 +116,11 @@ def get_subnet_id(session, url, subnet):
     subnet_id = session.get(url)
     return subnet_id.json().get('data')[0].get('id')
 
-#def get_free_ip(url, request, subnet_id):
-    #placeholder
+def get_free_ip(session, url, subnet_id):
+    payload = {'hostname': 'test-api', 'subnetId': '%s' % subnet_id}
+    url += 'addresses/first_free/'
+    free_ip = session.post(url, payload)
+    return free_ip.json().get('data')
 
 def main():
     run_module()

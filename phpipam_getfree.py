@@ -8,24 +8,31 @@ ANSIBLE_METADATA = {
 
 DOCUMENTATION = '''
 ---
-module: phpipam_getfree
+module: phpipam_freeip
 
-short_description: Grabs a free ip address from a subnet using phpipam API.
+short_description: Grabs a free ip address from a subnet using phpipam api.
 
 version_added: "2.4"
 
 description:
-    - "This is my longer description explaining my sample module"
+    - "Simple module that grabs a free ip address from a subnet"
 
 options:
-    name:
+    subnet:
         description:
-            - This is the message to send to the sample module
+            - Subnet in phpipam that you need to obtain a free ip address from
         required: true
-    new:
+    url:
         description:
-            - Control to demo if the result of this module is changed or not
-        required: false
+            - Address of phpipam server including api and app name
+        required: true
+    username:
+        description:
+            - Username for initial authentication to phpipam api
+        required: true
+    password:
+        description:
+            - Password for initial authentication to phpipam api
 
 author:
     - Carson Anderson (@rcanderson23)
@@ -33,59 +40,55 @@ author:
 
 EXAMPLES = '''
 # Pass in a message
-- name: Test with a message
-  my_new_test_module:
-    name: hello world
-
-# pass in a message and have changed true
-- name: Test with a message and changed output
-  my_new_test_module:
-    name: hello world
-    new: true
-
-# fail the module
-- name: Test failure of the module
-  my_new_test_module:
-    name: fail me
+- name: obtain a free ip address from phpipam
+  phpipam_getfree:
+    subnet: '192.168.0.0/24'
+    url: ipam.domain.tld/api/app_name/
+    username: user
+    password: password
+  delegate_to: localhost
+  register: ip_address
 '''
 
 RETURN = '''
-original_message:
-    description: The original name param that was passed in
+changed:
+    description: If module successfully obtained an ip
+    returned: success
+    type: bool
+subnet_id:
+    description: Subnet id of the ip address obtained
+    returned: success
     type: str
-message:
-    description: The output message that the sample module generates
+    sample: '7'
+ip:
+    description: IP address obtained from PHPIPAM
+    returned: success
+    type: str
+    sample: '192.168.0.7'
+token:
+    description: Authentication token used after initial user/pass authentication
+    returned: success
+    type: str
+
+
+
 '''
 
 from ansible.module_utils.basic import AnsibleModule
 import requests
 
 def run_module():
-    # define the available arguments/parameters that a user can pass to
-    # the module
     module_args = dict(
         subnet=dict(type='str', required=True),
         url=dict(type='str', required=False),
         username=dict(type='str', required=False),
-        password=dict(type='str', required=False),
-        set_alive=dict(type='bool', required=False)
+        password=dict(type='str', required=False, no_log=True),
     )
 
-    # seed the result dict in the object
-    # we primarily care about changed and state
-    # change is if this module effectively modified the target
-    # state will include any data that you want your module to pass back
-    # for consumption, for example, in a subsequent task
     result = dict(
-        changed=False,
-        original_message='',
-        message=''
+        changed=False
     )
 
-    # the AnsibleModule object will be our abstraction working with Ansible
-    # this includes instantiation, a couple of common attr would be the
-    # args/params passed to the execution, as well as if the module
-    # supports check mode
     module = AnsibleModule(
         argument_spec=module_args,
         supports_check_mode=False
@@ -93,17 +96,20 @@ def run_module():
     
     s = requests.Session()
     
-    token = get_token(module.params['url'], module.params['username'], module.params['password'])
+    token = get_token(module.params['url'], 
+                      module.params['username'], module.params['password'])
+    result['token'] = token
     s.headers.update({'token': '%s' % token})
 
     subnet_id = get_subnet_id(s, module.params['url'], module.params['subnet'])
     
+    result['subnet_id'] = subnet_id
+
     ip = get_free_ip(s, module.params['url'], subnet_id)
-
-    #result['message'] += token    
-
-    #get_subnet_id(module.params['url'], request, module.params['subnet']) 
-
+    
+    result['ip'] = ip
+    result['changed'] = True
+    
     module.exit_json(**result)
     
 def get_token(url, username, password):
